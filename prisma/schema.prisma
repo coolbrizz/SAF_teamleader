@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CHEF_VISITE
+  MECANICIEN
+  ADMIN
+}
+
+enum RemarkKind {
+  TACHE
+  CURA
+  TS
+  REMARQUE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  trigramme    String   @unique
+  boxNumber    String?
+  role         Role
+  createdAt    DateTime @default(now())
+
+  assignments      AircraftAssignment[]
+  inventories      Inventory[]
+  partRequests     PartRequest[]
+  remarks          Remark[]             @relation("RemarkAuthor")
+  completedRemarks Remark[]             @relation("RemarkDoneBy")
+}
+
+model Aircraft {
+  id             String   @id @default(cuid())
+  machineNumber  String
+  visitType      String
+  registration   String
+  createdAt      DateTime @default(now())
+
+  assignments AircraftAssignment[]
+  inventories Inventory[]
+  parts       PartRequest[]
+  remarks     Remark[]
+}
+
+model AircraftAssignment {
+  aircraftId String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([aircraftId, userId])
+}
+
+model Inventory {
+  id          String   @id @default(cuid())
+  mechanicId  String
+  aircraftId  String?
+  boxNumber   String
+  date        DateTime
+  observations String  @db.Text
+  signature   String
+  createdAt   DateTime @default(now())
+
+  mechanic User      @relation(fields: [mechanicId], references: [id], onDelete: Cascade)
+  aircraft Aircraft? @relation(fields: [aircraftId], references: [id], onDelete: SetNull)
+}
+
+model PartRequest {
+  id          String    @id @default(cuid())
+  aircraftId  String
+  createdById String
+  pn          String
+  taskRef     String
+  quantity    Int
+  ata         String
+  daNumber    String?
+  orderedAt   DateTime?
+  received    Boolean   @default(false)
+  receivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  aircraft  Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+model Remark {
+  id           String     @id @default(cuid())
+  aircraftId   String
+  createdById  String
+  kind         RemarkKind
+  reference    String?
+  body         String     @db.Text
+  done         Boolean    @default(false)
+  doneAt       DateTime?
+  doneById     String?
+  doneTrigramme String?
+  createdAt    DateTime   @default(now())
+
+  aircraft  Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("RemarkAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  doneBy    User?    @relation("RemarkDoneBy", fields: [doneById], references: [id], onDelete: SetNull)
+}
