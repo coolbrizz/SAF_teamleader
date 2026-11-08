@@ -6,10 +6,17 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guards";
 import { clearSessionCookie, setSessionCookie, signSession } from "@/lib/auth";
+import { ensureSeed } from "@/lib/ensure-seed";
 
 export async function loginAction(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  try {
+    await ensureSeed();
+  } catch (err) {
+    console.error("ensureSeed", err);
+    redirect("/login?e=db");
+  }
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     redirect("/login?e=1");

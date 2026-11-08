@@ -20,7 +20,7 @@ export default async function LoginPage({
           <form action={loginAction} className="space-y-4">
             <div>
               <Label>Mail</Label>
-              <Input name="email" type="email" autoComplete="username" required />
+              <Input name="email" type="text" autoComplete="username" required />
             </div>
             <div>
               <Label>Mot de passe</Label>
@@ -31,7 +31,13 @@ export default async function LoginPage({
                 required
               />
             </div>
-            {e && <p className="text-sm text-red-400">Identifiants incorrects.</p>}
+            {e === "db" && (
+              <p className="text-sm text-red-400">
+                Base MySQL inaccessible. Vérifie DATABASE_URL (un @ dans le mot de passe
+                doit être écrit %40).
+              </p>
+            )}
+            {e === "1" && <p className="text-sm text-red-400">Identifiants incorrects.</p>}
             <Btn type="submit" className="w-full">
               Entrer
             </Btn>
