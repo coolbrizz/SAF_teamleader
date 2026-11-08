@@ -2,36 +2,42 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 export async function ensureSeed() {
-  const n = await prisma.user.count();
-  if (n > 0) return;
-
-  const chefHash = await bcrypt.hash("Chef123!", 10);
-  const mecaHash = await bcrypt.hash("Meca123!", 10);
-
-  const meca = await prisma.user.create({
-    data: {
-      email: "meca@saf.local",
-      passwordHash: mecaHash,
-      firstName: "Jean",
-      lastName: "Martin",
-      trigramme: "JMA",
-      boxNumber: "C-12",
-      role: "MECANICIEN",
-    },
+  const chef = await prisma.user.findUnique({
+    where: { email: "chef@saf.local" },
   });
+  if (!chef) {
+    const chefHash = await bcrypt.hash("Chef123!", 10);
+    await prisma.user.create({
+      data: {
+        email: "chef@saf.local",
+        passwordHash: chefHash,
+        firstName: "Alex",
+        lastName: "Dupont",
+        trigramme: "CHE",
+        role: "ADMIN",
+      },
+    });
+  }
 
-  await prisma.user.create({
-    data: {
-      email: "chef@saf.local",
-      passwordHash: chefHash,
-      firstName: "Alex",
-      lastName: "Dupont",
-      trigramme: "ADU",
-      role: "ADMIN",
-    },
+  const meca = await prisma.user.findUnique({
+    where: { email: "meca@saf.local" },
   });
+  if (!meca) {
+    const mecaHash = await bcrypt.hash("Meca123!", 10);
+    await prisma.user.create({
+      data: {
+        email: "meca@saf.local",
+        passwordHash: mecaHash,
+        firstName: "Jean",
+        lastName: "Martin",
+        trigramme: "JMA",
+        boxNumber: "C-12",
+        role: "MECANICIEN",
+      },
+    });
+  }
 
-  const aircraft = await prisma.aircraft.upsert({
+  await prisma.aircraft.upsert({
     where: { id: "seed-h145-1" },
     update: {},
     create: {
@@ -40,11 +46,5 @@ export async function ensureSeed() {
       visitType: "1000h",
       registration: "F-HSAF",
     },
-  });
-
-  await prisma.aircraftAssignment.upsert({
-    where: { aircraftId_userId: { aircraftId: aircraft.id, userId: meca.id } },
-    update: {},
-    create: { aircraftId: aircraft.id, userId: meca.id },
   });
 }
