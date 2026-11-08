@@ -3,13 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guards";
 import { isChef } from "@/lib/auth";
 import { aircraftAccess } from "@/lib/access";
-import {
-  createPartAction,
-  setDaAction,
-  setReceivedAction,
-} from "@/app/actions/ops";
-import { AutoCheckForm } from "@/components/AutoCheckForm";
-import { Btn, GhostLink, Input, Label } from "@/components/fields";
+import { ATA_CHAPTERS, TASK_KINDS } from "@/lib/ata";
+import { createPartAction } from "@/app/actions/ops";
+import { PartRow } from "@/components/PartRow";
+import { Btn, GhostLink, Input, Label, Select } from "@/components/fields";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function PartsPage({
@@ -17,7 +14,7 @@ export default async function PartsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ ata?: string; tache?: string; e?: string }>;
+  searchParams: Promise<{ ata?: string; tache?: string; kind?: string; e?: string }>;
 }) {
   const user = await requireUser();
   const { id } = await params;
@@ -29,9 +26,12 @@ export default async function PartsPage({
   const parts = await prisma.partRequest.findMany({
     where: {
       aircraftId: id,
-      ...(q.ata ? { ata: { contains: q.ata, mode: "insensitive" } } : {}),
+      ...(q.ata ? { ata: q.ata } : {}),
+      ...(q.kind === "TACHE" || q.kind === "OE" || q.kind === "TS"
+        ? { taskKind: q.kind }
+        : {}),
       ...(q.tache
-        ? { taskRef: { contains: q.tache, mode: "insensitive" } }
+        ? { taskRef: { contains: q.tache } }
         : {}),
     },
     orderBy: { createdAt: "desc" },
@@ -43,8 +43,8 @@ export default async function PartsPage({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Pièces · {aircraft.registration}</h1>
-          <p className="text-sm text-[#8B9BB4]">
-            Ambre = commandée (DA) · Vert = reçue box
+          <p className="text-sm text-muted-foreground">
+            Ambre / orange = DA saisie · Vert = reçue box
           </p>
         </div>
         <GhostLink href={`/aeronefs/${id}`}>Menu machine</GhostLink>
@@ -55,96 +55,106 @@ export default async function PartsPage({
           <CardTitle>Demander une pièce</CardTitle>
         </CardHeader>
         <CardContent>
-        <form action={createPartAction} className="grid gap-3 sm:grid-cols-2">
-          <input type="hidden" name="aircraftId" value={id} />
-          <div>
-            <Label>PN</Label>
-            <Input name="pn" required />
-          </div>
-          <div>
-            <Label>Tâche de référence</Label>
-            <Input name="taskRef" required />
-          </div>
-          <div>
-            <Label>Quantité</Label>
-            <Input name="quantity" type="number" min={1} defaultValue={1} required />
-          </div>
-          <div>
-            <Label>ATA</Label>
-            <Input name="ata" placeholder="25-60-00" required />
-          </div>
-          {q.e && <p className="text-sm text-red-400 sm:col-span-2">Champs incomplets.</p>}
-          <Btn type="submit">Ajouter</Btn>
-        </form>
+          <form action={createPartAction} className="grid gap-3 sm:grid-cols-2">
+            <input type="hidden" name="aircraftId" value={id} />
+            <div>
+              <Label>PN</Label>
+              <Input name="pn" required />
+            </div>
+            <div>
+              <Label>Référence</Label>
+              <div className="flex gap-2">
+                <Select name="taskKind" defaultValue="TACHE" className="max-w-32">
+                  {TASK_KINDS.map((k) => (
+                    <option key={k.value} value={k.value}>
+                      {k.label}
+                    </option>
+                  ))}
+                </Select>
+                <Input name="taskRef" placeholder="N° tâche / OE / TS" required />
+              </div>
+            </div>
+            <div>
+              <Label>Quantité</Label>
+              <Input name="quantity" type="number" min={1} defaultValue={1} required />
+            </div>
+            <div>
+              <Label>ATA</Label>
+              <Select name="ata" required defaultValue="">
+                <option value="" disabled>
+                  Chapitre ATA
+                </option>
+                {ATA_CHAPTERS.map((a) => (
+                  <option key={a.code} value={a.code}>
+                    {a.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            {q.e && <p className="text-sm text-red-400 sm:col-span-2">Champs incomplets.</p>}
+            <Btn type="submit">Ajouter</Btn>
+          </form>
         </CardContent>
       </Card>
 
       <Card>
         <CardContent>
-        <form className="mb-4 grid gap-3 sm:grid-cols-3" method="get">
-          <div>
-            <Label>Filtre ATA</Label>
-            <Input name="ata" defaultValue={q.ata ?? ""} />
-          </div>
-          <div>
-            <Label>Filtre tâche</Label>
-            <Input name="tache" defaultValue={q.tache ?? ""} />
-          </div>
-          <div className="flex items-end">
-            <Btn type="submit" className="w-full bg-[#121a2c] text-[#E8EEF8] border border-[#1e2a44]">
-              Filtrer
-            </Btn>
-          </div>
-        </form>
+          <form className="mb-4 grid gap-3 sm:grid-cols-4" method="get">
+            <div>
+              <Label>Filtre ATA</Label>
+              <Select name="ata" defaultValue={q.ata ?? ""}>
+                <option value="">Tous</option>
+                {ATA_CHAPTERS.map((a) => (
+                  <option key={a.code} value={a.code}>
+                    {a.code}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>Type réf.</Label>
+              <Select name="kind" defaultValue={q.kind ?? ""}>
+                <option value="">Tous</option>
+                {TASK_KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>N° réf.</Label>
+              <Input name="tache" defaultValue={q.tache ?? ""} />
+            </div>
+            <div className="flex items-end">
+              <Btn type="submit" className="w-full border border-border bg-card text-foreground">
+                Filtrer
+              </Btn>
+            </div>
+          </form>
 
-        <ul className="space-y-3">
-          {parts.map((p) => {
-            const cls = p.received
-              ? "border-emerald-600 bg-emerald-950/50"
-              : p.daNumber
-                ? "border-[#F5C518] bg-[#F5C518]/10"
-                : "border-[#1e2a44] bg-[#0B1220]";
-            return (
-              <li key={p.id} className={`rounded-lg border p-3 ${cls}`}>
-                <div className="flex flex-wrap justify-between gap-2">
-                  <div>
-                    <p className="font-mono text-lg text-[#F5C518]">{p.pn}</p>
-                    <p className="text-sm">
-                      ATA {p.ata} · tâche {p.taskRef} · qté {p.quantity}
-                    </p>
-                    <p className="text-xs text-[#8B9BB4]">
-                      {p.createdBy.trigramme}
-                      {p.daNumber ? ` · DA ${p.daNumber}` : " · non commandée"}
-                    </p>
-                  </div>
-                  {chef && (
-                    <div className="flex min-w-[220px] flex-col gap-2">
-                      <form action={setDaAction} className="flex gap-2">
-                        <input type="hidden" name="id" value={p.id} />
-                        <Input
-                          name="daNumber"
-                          defaultValue={p.daNumber ?? ""}
-                          placeholder="N° DA"
-                        />
-                        <Btn type="submit">DA</Btn>
-                      </form>
-                      <AutoCheckForm
-                        action={setReceivedAction}
-                        hidden={{ id: p.id }}
-                        name="received"
-                        defaultChecked={p.received}
-                        label="Reçue box"
-                      />
-                    </div>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-          {parts.length === 0 && (
-            <li className="text-muted-foreground">Aucune pièce.</li>
-          )}
-        </ul>
+          <ul className="space-y-2">
+            {parts.map((p) => (
+              <PartRow
+                key={p.id}
+                chef={chef}
+                part={{
+                  id: p.id,
+                  pn: p.pn,
+                  ata: p.ata,
+                  taskKind: p.taskKind,
+                  taskRef: p.taskRef,
+                  quantity: p.quantity,
+                  daNumber: p.daNumber,
+                  received: p.received,
+                  createdBy: { trigramme: p.createdBy.trigramme },
+                }}
+              />
+            ))}
+            {parts.length === 0 && (
+              <li className="text-muted-foreground">Aucune pièce.</li>
+            )}
+          </ul>
         </CardContent>
       </Card>
     </div>

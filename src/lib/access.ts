@@ -9,6 +9,7 @@ export async function aircraftAccess(user: SessionUser, aircraftId: string) {
   return prisma.aircraft.findFirst({
     where: {
       id: aircraftId,
+      archivedAt: null,
       assignments: { some: { userId: user.id } },
     },
   });

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guards";
 import { isChef } from "@/lib/auth";
+import { persistPartReceived } from "@/lib/parts";
 
 export async function createInventoryAction(formData: FormData) {
   const session = await requireUser();
@@ -39,14 +40,30 @@ export async function createPartAction(formData: FormData) {
   const user = await requireUser();
   const aircraftId = String(formData.get("aircraftId") ?? "");
   const pn = String(formData.get("pn") ?? "").trim();
+  const taskKind = String(formData.get("taskKind") ?? "TACHE");
   const taskRef = String(formData.get("taskRef") ?? "").trim();
   const ata = String(formData.get("ata") ?? "").trim();
   const quantity = Number(formData.get("quantity") ?? 0);
-  if (!aircraftId || !pn || !taskRef || !ata || !quantity) {
+  if (
+    !aircraftId ||
+    !pn ||
+    !taskRef ||
+    !ata ||
+    !quantity ||
+    !["TACHE", "OE", "TS"].includes(taskKind)
+  ) {
     redirect(`/aeronefs/${aircraftId}/pieces?e=1`);
   }
   await prisma.partRequest.create({
-    data: { aircraftId, createdById: user.id, pn, taskRef, ata, quantity },
+    data: {
+      aircraftId,
+      createdById: user.id,
+      pn,
+      taskKind: taskKind as "TACHE" | "OE" | "TS",
+      taskRef,
+      ata,
+      quantity,
+    },
   });
   revalidatePath(`/aeronefs/${aircraftId}/pieces`);
   revalidatePath(`/aeronefs/${aircraftId}`);
@@ -66,15 +83,10 @@ export async function setDaAction(formData: FormData) {
 }
 
 export async function setReceivedAction(formData: FormData) {
-  const user = await requireUser();
-  if (!isChef(user)) return;
   const id = String(formData.get("id") ?? "");
-  const received = String(formData.get("received") ?? "") === "on";
-  const part = await prisma.partRequest.update({
-    where: { id },
-    data: { received, receivedAt: received ? new Date() : null },
-  });
-  revalidatePath(`/aeronefs/${part.aircraftId}/pieces`);
+  const raw = String(formData.get("received") ?? "");
+  const received = raw === "on" || raw === "true" || raw === "1";
+  await persistPartReceived(id, received);
 }
 
 export async function createRemarkAction(formData: FormData) {
@@ -93,10 +105,12 @@ export async function createRemarkAction(formData: FormData) {
   });
   revalidatePath(`/aeronefs/${aircraftId}`);
   revalidatePath(`/aeronefs/${aircraftId}/remarques`);
+  revalidatePath("/remarques");
 }
 
 export async function completeRemarkAction(formData: FormData) {
   const user = await requireUser();
+  if (!isChef(user)) return;
   const id = String(formData.get("id") ?? "");
   const done = String(formData.get("done") ?? "") === "on";
   const remark = await prisma.remark.update({
@@ -112,4 +126,5 @@ export async function completeRemarkAction(formData: FormData) {
   });
   revalidatePath(`/aeronefs/${remark.aircraftId}`);
   revalidatePath(`/aeronefs/${remark.aircraftId}/remarques`);
+  revalidatePath("/remarques");
 }

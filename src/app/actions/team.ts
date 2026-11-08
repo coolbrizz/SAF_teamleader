@@ -113,3 +113,28 @@ export async function deleteMechanicAction(formData: FormData) {
   revalidatePath("/utilisateurs");
   redirect("/utilisateurs");
 }
+
+export async function setAircraftArchivedAction(formData: FormData) {
+  await requireChef();
+  const aircraftId = String(formData.get("aircraftId") ?? "");
+  const archive = String(formData.get("archive") ?? "") === "1";
+  if (!aircraftId) redirect("/");
+  await prisma.aircraft.update({
+    where: { id: aircraftId },
+    data: { archivedAt: archive ? new Date() : null },
+  });
+  revalidatePath("/");
+  revalidatePath("/archives");
+  revalidatePath(`/aeronefs/${aircraftId}`);
+  redirect(archive ? "/archives" : `/aeronefs/${aircraftId}`);
+}
+
+export async function deleteAircraftAction(formData: FormData) {
+  await requireChef();
+  const aircraftId = String(formData.get("aircraftId") ?? "");
+  if (!aircraftId) redirect("/");
+  await prisma.aircraft.delete({ where: { id: aircraftId } });
+  revalidatePath("/");
+  revalidatePath("/archives");
+  redirect("/");
+}

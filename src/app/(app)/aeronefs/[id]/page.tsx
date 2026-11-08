@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guards";
 import { isChef } from "@/lib/auth";
 import { aircraftAccess } from "@/lib/access";
+import { setAircraftArchivedAction } from "@/app/actions/team";
+import { DeleteAircraftButton } from "@/components/DeleteAircraftButton";
 import { MenuCard } from "@/components/MenuCard";
 import { GhostLink } from "@/components/fields";
 
@@ -31,9 +33,33 @@ export default async function AircraftHubPage({
           <h1 className="text-2xl font-semibold">{aircraft.registration}</h1>
           <p className="text-muted-foreground">
             n° {aircraft.machineNumber} · visite {aircraft.visitType}
+            {aircraft.archivedAt ? " · ARCHIVÉ" : ""}
           </p>
         </div>
-        <GhostLink href="/">Changer d’aéronef</GhostLink>
+        <div className="flex flex-wrap gap-2">
+          {chef && (
+            <form action={setAircraftArchivedAction}>
+              <input type="hidden" name="aircraftId" value={id} />
+              <input
+                type="hidden"
+                name="archive"
+                value={aircraft.archivedAt ? "0" : "1"}
+              />
+              <button
+                type="submit"
+                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-border px-4 text-sm"
+              >
+                {aircraft.archivedAt ? "Sortir d’archive" : "Archiver (visite finie)"}
+              </button>
+            </form>
+          )}
+          {chef && (
+            <DeleteAircraftButton aircraftId={id} registration={aircraft.registration} />
+          )}
+          <GhostLink href={aircraft.archivedAt ? "/archives" : "/"}>
+            {aircraft.archivedAt ? "Archives" : "Changer d’aéronef"}
+          </GhostLink>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

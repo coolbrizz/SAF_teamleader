@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guards";
+import { isChef } from "@/lib/auth";
 import { aircraftAccess } from "@/lib/access";
 import { completeRemarkAction, createRemarkAction } from "@/app/actions/ops";
 import { AutoCheckForm } from "@/components/AutoCheckForm";
@@ -23,6 +24,7 @@ export default async function RemarksPage({
   const { id } = await params;
   const aircraft = await aircraftAccess(user, id);
   if (!aircraft) notFound();
+  const chef = isChef(user);
 
   const full = await prisma.aircraft.findUniqueOrThrow({
     where: { id },
@@ -38,7 +40,10 @@ export default async function RemarksPage({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Remarques · {full.registration}</h1>
-        <GhostLink href={`/aeronefs/${id}`}>Menu machine</GhostLink>
+        <div className="flex flex-wrap gap-2">
+          {chef && <GhostLink href="/remarques">Suivi chef</GhostLink>}
+          <GhostLink href={`/aeronefs/${id}`}>Menu machine</GhostLink>
+        </div>
       </div>
       <Card>
         <CardHeader>
@@ -87,21 +92,27 @@ export default async function RemarksPage({
                 </p>
                 <p className="mt-1 whitespace-pre-wrap">{r.body}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {r.createdBy.trigramme} ·{" "}
+                  Saisie {r.createdBy.trigramme} ·{" "}
                   {r.createdAt.toLocaleDateString("fr-FR", { timeZone: "UTC" })}
                 </p>
               </div>
-              <AutoCheckForm
-                action={completeRemarkAction}
-                hidden={{ id: r.id }}
-                name="done"
-                defaultChecked={r.done}
-                label="Faite"
-              />
+              {chef ? (
+                <AutoCheckForm
+                  action={completeRemarkAction}
+                  hidden={{ id: r.id }}
+                  name="done"
+                  defaultChecked={r.done}
+                  label={`Faite · ${user.trigramme}`}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {r.done ? "Validée chef" : "En attente chef de visite"}
+                </p>
+              )}
             </div>
             {r.done && (
               <p className="mt-2 text-sm text-emerald-300">
-                {r.doneTrigramme} ·{" "}
+                Validée {r.doneTrigramme} ·{" "}
                 {r.doneAt?.toLocaleDateString("fr-FR", { timeZone: "UTC" })}
               </p>
             )}
