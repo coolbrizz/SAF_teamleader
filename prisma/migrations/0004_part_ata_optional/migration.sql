@@ -1,0 +1,1 @@
+ALTER TABLE `PartRequest` MODIFY `ata` VARCHAR(191) NULL;
