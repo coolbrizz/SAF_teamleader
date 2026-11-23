@@ -4,10 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guards";
 import { isChef } from "@/lib/auth";
 import { aircraftAccess } from "@/lib/access";
+import { ATA_CHAPTERS } from "@/lib/ata";
 import { setAircraftArchivedAction } from "@/app/actions/team";
+import { AtaBoard } from "@/components/AtaBoard";
 import { DeleteAircraftButton } from "@/components/DeleteAircraftButton";
 import { MenuCard } from "@/components/MenuCard";
 import { GhostLink } from "@/components/fields";
+
+function ataLabel(code: string) {
+  if (code === "AER") return "Aérolite";
+  if (code === "AVIO") return "Avio";
+  if (code === "GTM") return "GTM";
+  return code;
+}
 
 export default async function AircraftHubPage({
   params,
@@ -20,10 +29,29 @@ export default async function AircraftHubPage({
   if (!aircraft) notFound();
   const chef = isChef(user);
 
-  const [openRemarks, pendingParts] = await Promise.all([
+  const [openRemarks, pendingParts, ataRows, ataStatuses, staff] = await Promise.all([
     prisma.remark.count({ where: { aircraftId: id, done: false } }),
     prisma.partRequest.count({ where: { aircraftId: id, received: false } }),
+    prisma.ataAssignment.findMany({
+      where: { aircraftId: id },
+      include: { user: { select: { trigramme: true } } },
+    }),
+    prisma.ataStatus.findMany({ where: { aircraftId: id } }),
+    prisma.user.findMany({
+      select: { id: true, trigramme: true },
+      orderBy: { trigramme: "asc" },
+    }),
   ]);
+  const ataItems = ATA_CHAPTERS.map((chapter) => ({
+    aircraftId: id,
+    ata: chapter.code,
+    label: ataLabel(chapter.code),
+    people: ataRows
+      .filter((row) => row.ata === chapter.code)
+      .map((row) => ({ userId: row.userId, trigramme: row.user.trigramme }))
+      .sort((a, b) => a.trigramme.localeCompare(b.trigramme, "fr")),
+    done: ataStatuses.find((status) => status.ata === chapter.code)?.done ?? false,
+  }));
 
   return (
     <div className="space-y-6">
@@ -61,6 +89,8 @@ export default async function AircraftHubPage({
           </GhostLink>
         </div>
       </div>
+
+      <AtaBoard items={ataItems} staff={staff} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <MenuCard

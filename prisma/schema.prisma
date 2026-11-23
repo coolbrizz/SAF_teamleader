@@ -41,6 +41,7 @@ model User {
   assignments      AircraftAssignment[]
   inventories      Inventory[]
   partRequests     PartRequest[]
+  ataAssignments   AtaAssignment[]
   remarks          Remark[]             @relation("RemarkAuthor")
   completedRemarks Remark[]             @relation("RemarkDoneBy")
 }
@@ -53,10 +54,12 @@ model Aircraft {
   archivedAt     DateTime?
   createdAt      DateTime @default(now())
 
-  assignments AircraftAssignment[]
-  inventories Inventory[]
-  parts       PartRequest[]
-  remarks     Remark[]
+  assignments    AircraftAssignment[]
+  inventories    Inventory[]
+  parts          PartRequest[]
+  ataAssignments AtaAssignment[]
+  ataStatuses    AtaStatus[]
+  remarks        Remark[]
 }
 
 model AircraftAssignment {
@@ -68,6 +71,32 @@ model AircraftAssignment {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([aircraftId, userId])
+}
+
+model AtaAssignment {
+  id         String    @id @default(cuid())
+  aircraftId String
+  userId     String
+  ata        String
+  done       Boolean   @default(false)
+  doneAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([aircraftId, userId, ata])
+}
+
+model AtaStatus {
+  aircraftId String
+  ata        String
+  done       Boolean   @default(false)
+  doneAt     DateTime?
+
+  aircraft Aircraft @relation(fields: [aircraftId], references: [id], onDelete: Cascade)
+
+  @@id([aircraftId, ata])
 }
 
 model Inventory {
@@ -96,6 +125,7 @@ model PartRequest {
   designation String?
   daNumber    String?
   orderedAt   DateTime?
+  receivedQty Int       @default(0)
   received    Boolean   @default(false)
   receivedAt  DateTime?
   createdAt   DateTime  @default(now())

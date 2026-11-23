@@ -6,7 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/guards";
 import { isChef } from "@/lib/auth";
 import { aircraftAccess } from "@/lib/access";
-import { persistPartReceived } from "@/lib/parts";
+import { ATA_CHAPTERS } from "@/lib/ata";
+import { persistPartReceivedQty } from "@/lib/parts";
 
 export async function createInventoryAction(formData: FormData) {
   const session = await requireUser();
@@ -111,9 +112,7 @@ export async function deletePartAction(formData: FormData) {
 
 export async function setReceivedAction(formData: FormData) {
   const id = String(formData.get("id") ?? "");
-  const raw = String(formData.get("received") ?? "");
-  const received = raw === "on" || raw === "true" || raw === "1";
-  await persistPartReceived(id, received);
+  await persistPartReceivedQty(id, Number(formData.get("receivedQty") ?? 0));
 }
 
 export async function createRemarkAction(formData: FormData) {
@@ -154,4 +153,44 @@ export async function completeRemarkAction(formData: FormData) {
   revalidatePath(`/aeronefs/${remark.aircraftId}`);
   revalidatePath(`/aeronefs/${remark.aircraftId}/remarques`);
   revalidatePath("/remarques");
+}
+
+const ATA_CODES = new Set(ATA_CHAPTERS.map((c) => c.code));
+
+export async function claimAtaAction(formData: FormData) {
+  const user = await requireUser();
+  const aircraftId = String(formData.get("aircraftId") ?? "");
+  const ata = String(formData.get("ata") ?? "");
+  const userId = String(formData.get("userId") ?? "") || user.id;
+  if (!ATA_CODES.has(ata)) return;
+  if (!(await aircraftAccess(user, aircraftId))) return;
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!target) return;
+  await prisma.ataAssignment.upsert({
+    where: { aircraftId_userId_ata: { aircraftId, userId: target.id, ata } },
+    update: {},
+    create: { aircraftId, userId: target.id, ata },
+  });
+  revalidatePath(`/aeronefs/${aircraftId}`);
+  revalidatePath(`/aeronefs/${aircraftId}/atas`);
+}
+
+export async function releaseAtaAction(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id") ?? "");
+  const aircraftId = String(formData.get("aircraftId") ?? "");
+  const ata = String(formData.get("ata") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  const row = id
+    ? await prisma.ataAssignment.findUnique({ where: { id } })
+    : aircraftId && ata && userId
+      ? await prisma.ataAssignment.findUnique({
+          where: { aircraftId_userId_ata: { aircraftId, userId, ata } },
+        })
+      : null;
+  if (!row) return;
+  if (!(await aircraftAccess(user, row.aircraftId))) return;
+  await prisma.ataAssignment.delete({ where: { id: row.id } });
+  revalidatePath(`/aeronefs/${row.aircraftId}`);
+  revalidatePath(`/aeronefs/${row.aircraftId}/atas`);
 }
