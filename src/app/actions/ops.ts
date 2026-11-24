@@ -155,7 +155,7 @@ export async function completeRemarkAction(formData: FormData) {
   revalidatePath("/remarques");
 }
 
-const ATA_CODES = new Set(ATA_CHAPTERS.map((c) => c.code));
+const ATA_CODES = new Set<string>(ATA_CHAPTERS.map((c) => c.code));
 
 export async function claimAtaAction(formData: FormData) {
   const user = await requireUser();
